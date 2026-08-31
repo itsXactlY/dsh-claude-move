@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 
+## [0.3.3] - 2026-08-31
+
+### Fixed
+
+- `move_preview` 工具输出不再包含显式 `undefined` 键（`previewPlan` 对 `new` 项不带 `reason`）：DSH 引擎对工具 body 值做 lossless JSON 快照，显式 `undefined` 键会让整个工具报 `value is not lossless JSON`，导致预览（及 `/move` 向导预览步骤）对所有源不可用。`move_run` 报告里 `newSessions[].title` 同样改为缺省省略。
+
 ## [0.3.2] - 2026-08-31
 
 ### Added

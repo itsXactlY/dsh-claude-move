@@ -52,6 +52,27 @@ function makeRealFs() {
   }
 }
 
+/**
+ * 断言工具返回值是 lossless JSON：无显式 undefined 键、无 -0/NaN、仅有限数字与
+ * 普通对象/数组。DSH 引擎对工具 body 值做 snapshotJsonValue，任一字段不合规则
+ * 整个工具报 "value is not lossless JSON"（本测试直接 execute，不经过引擎快照，
+ * 故显式断言该不变量）。
+ */
+function assertLossless(value, label = 'value') {
+  assert.notEqual(value, undefined, `${label} 为显式 undefined（违反 lossless JSON）`)
+  if (value === null || typeof value === 'boolean' || typeof value === 'string') return
+  if (typeof value === 'number') {
+    assert.ok(Number.isFinite(value) && !Object.is(value, -0), `${label} 必须为有限数字（非 -0）`)
+    return
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, i) => assertLossless(item, `${label}[${i}]`))
+    return
+  }
+  assert.equal(typeof value, 'object', `${label} 非对象`)
+  for (const [k, v] of Object.entries(value)) assertLossless(v, `${label}.${k}`)
+}
+
 /** mock ctx：tools/commands/systemPrompt/skills/sessionPersistence/workspaceRegistry/approval。 */
 function makeCtx(overrides = {}) {
   const persistence = makePersistence()
@@ -225,12 +246,13 @@ test('全链路：detect → preview → run → 幂等重跑 → force', async 
   assert.equal(index.stats.commands, 2)   // codex commit + opencode test
 
   const preview = await previewTool.execute({})
-  console.log('DEBUG previews:', preview.previews.map((p) => p.source + '/' + p.kind + ':' + p.status).join(', '))
+  assertLossless(preview, 'preview')
   assert.equal(preview.counts.new, 19)    // 4 会话 + 5 技能 + 4 记忆 + 4 指令段 + 2 命令
   assert.equal(preview.counts.unsupported, 1) // claude settings hooks
   assert.equal(preview.counts.conflict, 0)
 
   const exec = await run.execute({})
+  assertLossless(exec, 'run')
   assert.equal(exec.approved, true)
   assert.equal(exec.applied, 19)
   assert.equal(exec.unsupported, 1)
@@ -330,6 +352,7 @@ test('审批拒绝 → 零写入；requireApproval=false 放行', async (t) => {
   })
   const run = registered.find((d) => d.name === 'move_run')
   const exec = await run.execute({}, { agent })
+  assertLossless(exec, 'run-rejected')
   assert.equal(exec.approved, false)
   assert.equal(exec.outcome, 'rejected')
   assert.equal(persistence.sessions.size, 0)

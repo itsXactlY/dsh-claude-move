@@ -2847,12 +2847,14 @@ function makeMoveTools(ctx, config, state) {
           ...(c.diff ? { diff: c.diff } : {}),
           ...(c.existing ? { existing: c.existing } : {}),
         })),
+        // lossless JSON：previewPlan 对 'new' 项不带 reason —— 显式 undefined 键
+        // 会让引擎 snapshot 整体报 "value is not lossless JSON"，缺省键一律省略。
         previews: preview.previews.map((p) => ({
           key: p.plan.key,
-          source: p.plan.from,
+          ...(p.plan.from !== undefined ? { source: p.plan.from } : {}),
           kind: p.plan.kind,
           status: p.status,
-          reason: p.reason,
+          ...(p.reason !== undefined ? { reason: p.reason } : {}),
         })),
       }
     },
