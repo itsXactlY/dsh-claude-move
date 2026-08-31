@@ -5,7 +5,7 @@
 
 **Claude Code, Codex, OpenCode और Hermes को DeepSeek Harness में माइग्रेट करें — सत्र, यादें, कौशल, निर्देश और स्लैश कमांड को फिर-से-शुरू होने योग्य DSH सत्रों के रूप में कॉपी करें, केवल-कॉपी और अनुमोदन-गेटेड।**
 
-*स्थानांतरित होते समय अपना Claude Code इतिहास बनाए रखें: एक ही इंस्टॉल, फिर-से-शुरू सत्र, चालू Claude Code के साथ लाइव तालमेल, और एक चार-स्रोत माइग्रेशन विज़ार्ड।*
+*स्थानांतरित होते समय अपना Claude Code इतिहास बनाए रखें: एक ही इंस्टॉल, फिर-से-शुरू सत्र, चालू Claude Code के साथ लाइव तालमेल, और एक पाँच-स्रोत माइग्रेशन विज़ार्ड।*
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![DSH plugin](https://img.shields.io/badge/dsh-plugin-✅-green)](https://github.com/topics/dsh-plugin)
@@ -42,21 +42,21 @@
 3. **एक `claudecode` workspace** — हर आयातित सत्र एक समर्पित workspace में जाता है (डिफ़ॉल्ट `$DSH_HOME/claudecode`); `workspaceMode: 'per-project'` प्रति-प्रोजेक्ट एक-workspace समूहन बहाल करता है।
 4. **केवल-कॉपी और वृद्धिशील** — किसी भी तरफ कुछ भी स्थानांतरित, दोबारा लिखा या हटाया नहीं जाता; फिर चलाने पर केवल नए टर्न जोड़े जाते हैं (`force: true` एक नए id के तहत अतिरिक्त पूरी कॉपी सहेजता है)।
 5. **व्यक्तिगत संदर्भ, हमेशा ताज़ा** — यादें लाइव प्रॉम्प्ट अनुभाग के रूप में इंजेक्ट होती हैं, Claude कौशल वास्तविक DSH कौशल के रूप में पंजीकृत होते हैं (वैश्विक + प्रोजेक्ट-स्तर), वैश्विक + प्रोजेक्ट `CLAUDE.md` जल्दी इंजेक्ट होता है।
-6. **चार-स्रोत माइग्रेशन विज़ार्ड** — `/move` और `move_detect` / `move_preview` / `move_run` Claude Code, Codex, OpenCode और Hermes को माइग्रेट करते हैं, अनुमोदन-गेटेड और आइडेम्पोटेंट (`move.json`)।
+6. **पाँच-स्रोत माइग्रेशन विज़ार्ड** — `/move` और `move_detect` / `move_preview` / `move_run` Claude Code, Codex, OpenCode, Hermes और Daedalus को माइग्रेट करते हैं, अनुमोदन-गेटेड और आइडेम्पोटेंट (`move.json`)।
 7. **वेब पैनल और कमांड** — `/claude-import-all`, `/resume-claude`, `/claude-move-reset`, `/claude-export`, और एक फ़्लोटिंग माइग्रेशन पैनल।
 8. **द्विदिश निर्यात** — `claude_export` (या `/claude-export <sessionId>`) एक DSH सत्र को वापस resumable Claude Code JSONL transcript के रूप में लिखता है (`user`/`assistant`/`tool` टर्न, `thinking` + `tool_use`/`tool_result` जोड़ी, सर्वोत्तम-प्रयास `cwd` मैपिंग), ताकि इतिहास फिर से DSH से बाहर जा सके।
 
-## चार-स्रोत माइग्रेशन विज़ार्ड
+## पाँच-स्रोत माइग्रेशन विज़ार्ड
 
 ```text
-/move              # एक-चरण विज़ार्ड: पता लगाएँ → पूर्वावलोकन → निष्पादन → रिपोर्ट (चारों स्रोत)
-move_detect        # Claude Code / Codex / OpenCode / Hermes को स्कैन करें
+/move              # एक-चरण विज़ार्ड: पता लगाएँ → पूर्वावलोकन → निष्पादन → रिपोर्ट (पाँचों स्रोत)
+move_detect        # Claude Code / Codex / OpenCode / Hermes / Daedalus को स्कैन करें
 move_preview       # प्रति-आइटम योजना: new | unchanged | changed | conflict (diff सहित) | unsupported
 move_run           # अनुमोदन गेट के पीछे निष्पादित करें; विरोध समाधान:
                    #   skip | overwrite | rename | merge  (डिफ़ॉल्ट skip — कभी अनुमान नहीं लगाता)
 ```
 
-- **स्रोत** — Claude Code (`~/.claude`), Codex (`~/.codex`), OpenCode (डेटा + config रूट), Hermes (कौशल/याद रूट); हर स्रोत का अपना parser + mapper है।
+- **स्रोत** — Claude Code (`~/.claude`), Codex (`~/.codex`), OpenCode (डेटा + config रूट), Hermes (कौशल/याद रूट), Daedalus (सत्र/कौशल/याद रूट + `SOUL.md`); हर स्रोत का अपना parser + mapper है।
 - **मैपिंग** — यादें/निर्देश → DSH वैश्विक `AGENTS.md` में केवल-जोड़ने योग्य प्रबंधित अनुभाग (प्रति आइटम एक चिह्नित अनुभाग); कौशल → वास्तविक DSH कौशल (`SKILL.md` बंडल ज्यों-का-त्यों कॉपी, अन्य प्रारूप परिवर्तित); स्लैश कमांड → पंजीकृत DSH कमांड (पुनः प्रारंभ के बाद `move.json` से पुनर्निर्मित); सत्र → फिर-से-शुरू DSH सत्र (चरण 1 के समान आयातक)।
 - **आइडेम्पोटेंट** — हर लागू योजना `$DSH_HOME/claude-move/move.json` में दर्ज होती है (`digest` / `targetDigest` / `appliedAt`); पुनः चलाने पर अपरिवर्तित आइटम छोड़ दिए जाते हैं और `force` उन्हें फिर से लागू करता है।
 - **अनुमोदन-गेटेड** — कोई भी रन जो कुछ लिखेगा पहले `ctx.approval` से पूछता है; `allowed-once` के अलावा कुछ भी होने पर शून्य लेखन।
@@ -180,6 +180,7 @@ claude_export { sessionId: "...", path: "~/.claude/projects/<slug>/<id>.jsonl" }
 | `opencodeDataHome` | प्लेटफ़ॉर्म XDG डेटा dir/opencode | OpenCode डेटा रूट |
 | `opencodeConfigHome` | प्लेटफ़ॉर्म XDG config dir/opencode | OpenCode config रूट |
 | `hermesHome` | `$HERMES_HOME` या `~/.hermes` | Hermes डेटा रूट |
+| `daedalusHome` | `$DAEDALUS_HOME` या `~/.daedalus` | Daedalus डेटा रूट |
 | `skillsDir` | `$DSH_HOME/skills` | विज़ार्ड कौशल लक्ष्य |
 | `agentsMdPath` | `$DSH_HOME/AGENTS.md` | विज़ार्ड याद/निर्देश लक्ष्य |
 | `moveWorkspaceMode` | `per-source` | विज़ार्ड आयात के लिए workspace समूहन: `per-source` · `single` |
@@ -193,12 +194,12 @@ claude_export { sessionId: "...", path: "~/.claude/projects/<slug>/<id>.jsonl" }
 | `claude_scan` | टूल | प्रोजेक्ट/सत्र/याद/कौशल/सेटिंग का संरचित इंडेक्स |
 | `import_claude` | टूल | एक सत्र, निर्देशिका या `all` आयात करें (वृद्धिशील; `force` से नई कॉपी) |
 | `claude_export` | टूल | DSH सत्र को resumable Claude Code JSONL transcript में निर्यात करें |
-| `move_detect` / `move_preview` / `move_run` | टूल | चार-स्रोत विज़ार्ड: स्कैन, diff सहित प्रति-आइटम योजना, अनुमोदन के बाद निष्पादन |
+| `move_detect` / `move_preview` / `move_run` | टूल | पाँच-स्रोत विज़ार्ड: स्कैन, diff सहित प्रति-आइटम योजना, अनुमोदन के बाद निष्पादन |
 | `/claude-import-all` | कमांड | स्कैन → सब आयात → रिपोर्ट |
 | `/resume-claude` | कमांड | Claude सत्र जारी करें (latest, id या कीवर्ड) |
 | `/claude-move-reset` | कमांड | प्लगइन कैश रीसेट करें (आयातित सत्र बने रहते हैं) |
 | `/claude-export` | कमांड | DSH सत्र को resumable Claude JSONL transcript में निर्यात करें |
-| `/move` | कमांड | एक-चरण चार-स्रोत विज़ार्ड |
+| `/move` | कमांड | एक-चरण पाँच-स्रोत विज़ार्ड |
 | वेब माइग्रेशन पैनल | क्लाइंट | प्रगति, रद्द, पेजिंग, सत्र खोलें वाला फ़्लोटिंग पैनल |
 
 ## अनुमतियाँ और डेटा
@@ -264,7 +265,7 @@ CI GitHub Actions ([test.yml](.github/workflows/test.yml)) के माध्�
 
 ## योगदानकर्ता
 
-- [@PerryLink](https://github.com/PerryLink) — निर्माता और अनुरक्षक: आयात पाइपलाइन, चार-स्रोत माइग्रेशन विज़ार्ड, वेब पैनल, दस्तावेज़, CI/CD और रिलीज़।
+- [@PerryLink](https://github.com/PerryLink) — निर्माता और अनुरक्षक: आयात पाइपलाइन, पाँच-स्रोत माइग्रेशन विज़ार्ड, वेब पैनल, दस्तावेज़, CI/CD और रिलीज़।
 - [@OLDnana1](https://github.com/OLDnana1) — बाधित टूल-कॉल भ्रष्टाचार का मूल-कारण विश्लेषण, जिसके कारण आयातित सत्र रिज़्यूम पर स्थायी रूप से HTTP 400 लौटाते थे।
 - [@GooodWei](https://github.com/GooodWei) — पहचाना कि `README.md` (और कोई भी विवरण-रहित `.md`) गलती से कौशल के रूप में पंजीकृत हो जाता था, जिससे DSH का कौशल लोड टूट जाता था।
 

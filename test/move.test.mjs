@@ -1,4 +1,4 @@
-// move.test.mjs — 四合一迁移向导集成测试：真实临时四源数据 + mock DSH ctx，
+// move.test.mjs — 五源迁移向导集成测试：真实临时五源数据 + mock DSH ctx，
 // 走 apply → move_detect/preview/run 全链路：检测计数、幂等重跑、force、
 // 冲突解法、审批拒绝零写入、AGENTS.md 管理段、skills 落盘、会话导入。
 import { test } from 'node:test'
@@ -158,7 +158,29 @@ async function buildSourceHomes(t) {
   await writeFile(path.join(claude, 'CLAUDE.md'), '# Claude rules\nTerse.\n')
   await writeFile(path.join(claude, 'settings.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'true' }] }] } }))
 
-  return { root, codex, hermes, opencode, opencodeConfig, claude }
+  // Daedalus
+  const daedalus = path.join(root, '.daedalus')
+  await mkdir(path.join(daedalus, 'sessions'), { recursive: true })
+  await writeFile(path.join(daedalus, 'sessions', 'session_demo.json'), JSON.stringify({
+    session_id: 'daedalus-1',
+    model: 'daedalus-test',
+    session_start: '2026-08-02T08:00:00.000Z',
+    messages: [
+      { role: 'user', content: 'Daemon task' },
+      { role: 'assistant', content: 'Handled.', tool_calls: [{ id: 'dc1', function: { name: 'bash', arguments: '{}' } }] },
+      { role: 'tool', content: 'ok', tool_call_id: 'dc1' },
+    ],
+  }))
+  await writeFile(path.join(daedalus, 'sessions', 'request_dump_1.json'), '{"messages":[]}') // 白名单外（request_dump 永不读取）
+  await mkdir(path.join(daedalus, 'skills', 'daemon', 'daemon-skill'), { recursive: true })
+  await writeFile(path.join(daedalus, 'skills', 'daemon', 'daemon-skill', 'SKILL.md'), '---\nname: daemon-skill\ndescription: Daemon ops\n---\n\n# Daemon\n')
+  await mkdir(path.join(daedalus, 'memories'), { recursive: true })
+  await writeFile(path.join(daedalus, 'memories', 'MEMORY.md'), 'Daemon facts here.\n')
+  await writeFile(path.join(daedalus, 'memories', 'USER.md'), 'User runs daemons.\n')
+  await writeFile(path.join(daedalus, 'SOUL.md'), '# SOUL\nDaemon persona.\n')
+  await writeFile(path.join(daedalus, 'auth.json'), '{"key":"sk-da"}') // 白名单外
+
+  return { root, codex, hermes, opencode, opencodeConfig, claude, daedalus }
 }
 
 async function withTempDshHome(t) {
@@ -186,6 +208,7 @@ test('全链路：detect → preview → run → 幂等重跑 → force', async 
     opencodeDataHome: homes.opencode,
     opencodeConfigHome: homes.opencodeConfig,
     hermesHome: homes.hermes,
+    daedalusHome: homes.daedalus,
     skillsDir,
     agentsMdPath: agentsMd,
   })
@@ -195,30 +218,31 @@ test('全链路：detect → preview → run → 幂等重跑 → force', async 
   const run = registered.find((d) => d.name === 'move_run')
 
   const index = await detect.execute({})
-  assert.equal(index.stats.sessions, 3)   // claude + codex + opencode
-  assert.equal(index.stats.skills, 4)     // claude-skill + k-skill + deploy-runbook + reviewer
-  assert.equal(index.stats.memories, 2)   // claude notes + hermes MEMORY.md
-  assert.equal(index.stats.instructions, 3) // CLAUDE.md + AGENTS.md(codex) + AGENTS.md(opencode)
+  assert.equal(index.stats.sessions, 4)   // claude + codex + opencode + daedalus
+  assert.equal(index.stats.skills, 5)     // claude-skill + k-skill + deploy-runbook + reviewer + daemon-skill
+  assert.equal(index.stats.memories, 4)   // claude notes + hermes MEMORY.md + daedalus MEMORY.md + USER.md
+  assert.equal(index.stats.instructions, 4) // CLAUDE.md + AGENTS.md(codex) + AGENTS.md(opencode) + SOUL.md
   assert.equal(index.stats.commands, 2)   // codex commit + opencode test
 
   const preview = await previewTool.execute({})
   console.log('DEBUG previews:', preview.previews.map((p) => p.source + '/' + p.kind + ':' + p.status).join(', '))
-  assert.equal(preview.counts.new, 14)    // 3 会话 + 4 技能 + 2 记忆 + 3 指令段 + 2 命令
+  assert.equal(preview.counts.new, 19)    // 4 会话 + 5 技能 + 4 记忆 + 4 指令段 + 2 命令
   assert.equal(preview.counts.unsupported, 1) // claude settings hooks
   assert.equal(preview.counts.conflict, 0)
 
   const exec = await run.execute({})
   assert.equal(exec.approved, true)
-  assert.equal(exec.applied, 14)
+  assert.equal(exec.applied, 19)
   assert.equal(exec.unsupported, 1)
 
   // 会话落盘（含工作区挂接）。
-  assert.equal(persistence.sessions.size, 3)
+  assert.equal(persistence.sessions.size, 4)
   // 技能目录落盘。
   assert.ok(existsSync(path.join(skillsDir, 'k-skill', 'SKILL.md')))
   assert.ok(existsSync(path.join(skillsDir, 'deploy-runbook', 'SKILL.md')))
   assert.ok(existsSync(path.join(skillsDir, 'reviewer', 'SKILL.md')))
   assert.ok(existsSync(path.join(skillsDir, 'claude-skill', 'SKILL.md')))
+  assert.ok(existsSync(path.join(skillsDir, 'daemon-skill', 'SKILL.md')))
   // AGENTS.md 管理段。
   const agentsText = await readFile(agentsMd, 'utf8')
   assert.match(agentsText, /User prefers tabs/)
@@ -226,6 +250,8 @@ test('全链路：detect → preview → run → 幂等重跑 → force', async 
   assert.match(agentsText, /Claude rules/)
   assert.match(agentsText, /OC rules/)
   assert.match(agentsText, /CLI-first/)
+  assert.match(agentsText, /Daemon facts here/)
+  assert.match(agentsText, /Daemon persona/)
   // move.json 幂等清单。
   const manifest = await loadManifest()
   assert.ok(Object.keys(manifest).length >= 10)
@@ -233,7 +259,7 @@ test('全链路：detect → preview → run → 幂等重跑 → force', async 
   // 幂等重跑：全部跳过。
   const again = await run.execute({})
   assert.equal(again.applied, 0)
-  assert.equal(again.skipped, 14)
+  assert.equal(again.skipped, 19)
 
   // force：非冲突项重新应用（会话另存新副本，技能/段重写）。
   const forced = await run.execute({ force: true })
@@ -258,6 +284,7 @@ test('冲突：目标被手工修改 → preview 报冲突 → resolve=overwrite
     opencodeDataHome: homes.opencode,
     opencodeConfigHome: homes.opencodeConfig,
     hermesHome: homes.hermes,
+    daedalusHome: homes.daedalus,
     skillsDir,
     agentsMdPath: path.join(dshHome, 'AGENTS.md'),
   })
@@ -297,6 +324,7 @@ test('审批拒绝 → 零写入；requireApproval=false 放行', async (t) => {
     opencodeDataHome: homes.opencode,
     opencodeConfigHome: homes.opencodeConfig,
     hermesHome: homes.hermes,
+    daedalusHome: homes.daedalus,
     skillsDir,
     agentsMdPath: path.join(dshHome, 'AGENTS.md'),
   })
@@ -321,6 +349,7 @@ test('命令注册：codex command.md 纯提示词 → DSH 命令；apply 时按
     opencodeDataHome: homes.opencode,
     opencodeConfigHome: homes.opencodeConfig,
     hermesHome: homes.hermes,
+    daedalusHome: homes.daedalus,
     skillsDir: path.join(dshHome, 'skills'),
     agentsMdPath: path.join(dshHome, 'AGENTS.md'),
   })
@@ -341,6 +370,7 @@ test('命令注册：codex command.md 纯提示词 → DSH 命令；apply 时按
     opencodeDataHome: homes.opencode,
     opencodeConfigHome: homes.opencodeConfig,
     hermesHome: homes.hermes,
+    daedalusHome: homes.daedalus,
     skillsDir: path.join(dshHome, 'skills'),
     agentsMdPath: path.join(dshHome, 'AGENTS.md'),
   })

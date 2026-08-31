@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 
+## [0.3.2] - 2026-08-31
+
+### Added
+
+- Daedalus 第五源：`/move` 向导新增 Daedalus（Nous Research Python agent）迁移——`$DAEDALUS_HOME`（缺省 `~/.daedalus`）下白名单只读 `sessions/`、`skills/`、`memories/` 与 `SOUL.md`；`session_*.json` 会话（user/assistant/tool 消息 + OpenAI `tool_calls`）转换为平衡事件流并可续聊，技能复制、记忆/指令追加为 `AGENTS.md` 管理段。新增 `daedalusHome` 配置项、五语 README 与测试同步更新。
+
 ## [0.3.1] - 2026-08-30
 
 ### Fixed

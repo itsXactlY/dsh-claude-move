@@ -56,6 +56,9 @@ import * as opencodeParser from './lib/sources/opencode/parser.mjs'
 import * as opencodeMapper from './lib/sources/opencode/mapper.mjs'
 import * as hermesParser from './lib/sources/hermes/parser.mjs'
 import * as hermesMapper from './lib/sources/hermes/mapper.mjs'
+import * as daedalusParser from './lib/sources/daedalus/parser.mjs'
+import * as daedalusMapper from './lib/sources/daedalus/mapper.mjs'
+import { convertDaedalusSession } from './lib/sources/daedalus/convert.mjs'
 import { convertOpencodeRows, loadDbSessionRows, loadLegacySessionRows } from './lib/sources/opencode/convert.mjs'
 import { mergeDetections } from './lib/sources/contract.mjs'
 
@@ -88,13 +91,14 @@ export const DEFAULT_IMPORT_CONCURRENCY = 4
  * @property {number} [importConcurrency] 批量导入读取+转换并发上限（默认 4；落盘串行）。
  * @property {'claudecode'|'per-project'} [workspaceMode] 工作区归组方式：'claudecode'（默认）把全部导入会话挂到独立的 claudecode 工作区（claudecodeDir 目录）；'per-project' 按源项目 cwd 各建一个工作区。
  * @property {string} [claudecodeDir] claudecode 工作区目录；缺省 `$DSH_HOME/claudecode`（DSH_HOME 缺失时 `~/.dsh/claudecode`）。插件只会在此目录下创建文件夹（迁移唯一的有意写入），绝不触碰其它路径。
- * @property {boolean} [enableMove] 注册四合一迁移向导（move_detect/move_preview/move_run 工具与 /move 命令，默认 true）。
+ * @property {boolean} [enableMove] 注册五源迁移向导（move_detect/move_preview/move_run 工具与 /move 命令，默认 true）。
  * @property {boolean} [requireApproval] 迁移执行前经 ctx.approval 审批（默认 true；fail-closed，非 allowed-once 零写入；无审批 seam 的平台显式设 false 才可执行）。
- * @property {('claude'|'codex'|'opencode'|'hermes')[]} [sources] 向导覆盖的源（默认四源全开）。
+ * @property {('claude'|'codex'|'opencode'|'hermes'|'daedalus')[]} [sources] 向导覆盖的源（默认五源全开）。
  * @property {string} [codexHome] Codex 数据根；缺省 `$CODEX_HOME` 或 `~/.codex`。
  * @property {string} [opencodeDataHome] OpenCode 数据根；缺省 XDG_DATA_HOME/opencode（平台默认）。
  * @property {string} [opencodeConfigHome] OpenCode 配置根；缺省 XDG_CONFIG_HOME/opencode（平台默认）。
  * @property {string} [hermesHome] Hermes 数据根；缺省 `$HERMES_HOME` 或 `~/.hermes`。
+ * @property {string} [daedalusHome] Daedalus 数据根；缺省 `$DAEDALUS_HOME` 或 `~/.daedalus`。
  * @property {'per-source'|'single'} [moveWorkspaceMode] 向导会话归组：'per-source'（默认）每源一个工作区（`$DSH_HOME/imports/<source>`）；'single' 全部挂到一个 imports 工作区（`$DSH_HOME/imports`）。
  * @property {string} [skillsDir] 向导技能落点；缺省 `$DSH_HOME/skills`（官方用户技能根，DSH 自动发现）。
  * @property {string} [agentsMdPath] 向导记忆/指令落点；缺省 `$DSH_HOME/AGENTS.md`（DSH 全局指令文件）。
@@ -125,12 +129,13 @@ export const Config = Schema.object({
   enableMove: Schema.boolean().default(true),
   requireApproval: Schema.boolean().default(true),
   sources: Schema.array(Schema.union([
-    Schema.const('claude'), Schema.const('codex'), Schema.const('opencode'), Schema.const('hermes'),
-  ])).default(['claude', 'codex', 'opencode', 'hermes']),
+    Schema.const('claude'), Schema.const('codex'), Schema.const('opencode'), Schema.const('hermes'), Schema.const('daedalus'),
+  ])).default(['claude', 'codex', 'opencode', 'hermes', 'daedalus']),
   codexHome: Schema.string(),
   opencodeDataHome: Schema.string(),
   opencodeConfigHome: Schema.string(),
   hermesHome: Schema.string(),
+  daedalusHome: Schema.string(),
   moveWorkspaceMode: Schema.union([Schema.const('per-source'), Schema.const('single')]).default('per-source'),
   skillsDir: Schema.string(),
   agentsMdPath: Schema.string(),
@@ -2457,12 +2462,12 @@ function registerRouteDefinitions(ctx, config, state, webServer) {
 // ctx.approval 审批（特性探测，fail-closed）。
 
 /** 源解析器/映射器注册表（按源标识）。 */
-const WIZARD_PARSERS = { claude: claudeParser, codex: codexParser, opencode: opencodeParser, hermes: hermesParser }
-const WIZARD_MAPPERS = { claude: claudeMapper, codex: codexMapper, opencode: opencodeMapper, hermes: hermesMapper }
+const WIZARD_PARSERS = { claude: claudeParser, codex: codexParser, opencode: opencodeParser, hermes: hermesParser, daedalus: daedalusParser }
+const WIZARD_MAPPERS = { claude: claudeMapper, codex: codexMapper, opencode: opencodeMapper, hermes: hermesMapper, daedalus: daedalusMapper }
 
 /** 向导覆盖的源列表（config.sources 过滤未知值）。 */
 export function wizardSourcesOf(config) {
-  const want = config?.sources ?? ['claude', 'codex', 'opencode', 'hermes']
+  const want = config?.sources ?? ['claude', 'codex', 'opencode', 'hermes', 'daedalus']
   return (Array.isArray(want) ? want : []).filter((s) => WIZARD_PARSERS[s])
 }
 
@@ -2531,6 +2536,7 @@ export function makeWizardRuntime(ctx, config, state) {
       case 'codex': return config.codexHome ? path.resolve(config.codexHome) : codexParser.locateHome()
       case 'opencode': return config.opencodeDataHome ? path.resolve(config.opencodeDataHome) : opencodeParser.locateHome()
       case 'hermes': return config.hermesHome ? path.resolve(config.hermesHome) : hermesParser.locateHome()
+      case 'daedalus': return config.daedalusHome ? path.resolve(config.daedalusHome) : daedalusParser.locateHome()
       default: return config.claudeHome ? path.resolve(config.claudeHome) : locateClaudeHome()
     }
   }
@@ -2605,9 +2611,13 @@ export function makeWizardRuntime(ctx, config, state) {
           throw new Error(`transcript 过大（${info.size} 字节 > maxTranscriptBytes ${maxBytes}）：请调高 maxTranscriptBytes 后重试`)
         }
         const raw = await fs.readText(target)
-        converted = plan.provider === 'codex'
-          ? convertCodexJsonl(raw, {})
-          : convertClaudeJsonl(raw, {})
+        if (plan.provider === 'codex') {
+          converted = convertCodexJsonl(raw, {})
+        } else if (plan.provider === 'daedalus') {
+          converted = convertDaedalusSession(raw, { sessionId: plan.source.sessionId })
+        } else {
+          converted = convertClaudeJsonl(raw, {})
+        }
         if (!converted.events.some((e) => e.type === 'session/title')) {
           appendTitleEvent(converted, plan.title)
         }
@@ -2724,7 +2734,7 @@ const moveRunSchema = {
 }
 
 /** 源显示名（报告用）。 */
-const SOURCE_LABELS = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', hermes: 'Hermes' }
+const SOURCE_LABELS = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', hermes: 'Hermes', daedalus: 'Daedalus' }
 
 /** move_detect 结果摘要（中文，一句角色陈述开头）。 */
 export function renderMoveDetect(args, value) {
@@ -2778,12 +2788,12 @@ function makeMoveTools(ctx, config, state) {
   const detectTool = defineTool({
     name: 'move_detect',
     description:
-      'Detect migratable data from other coding agents (Claude Code / Codex / OpenCode / Hermes) with a read-only whitelist scan: sessions, skills, memories, instruction files, commands and hooks. Returns per-source counts and errors. Use move_preview next for per-item status and conflict diffs. ' +
-      '（只读白名单扫描四源（Claude Code/Codex/OpenCode/Hermes）可迁移内容：会话/技能/记忆/指令/命令/钩子，逐源计数与错误。下一步 move_preview。）',
+      'Detect migratable data from other coding agents (Claude Code / Codex / OpenCode / Hermes / Daedalus) with a read-only whitelist scan: sessions, skills, memories, instruction files, commands and hooks. Returns per-source counts and errors. Use move_preview next for per-item status and conflict diffs. ' +
+      '（只读白名单扫描五源（Claude Code/Codex/OpenCode/Hermes/Daedalus）可迁移内容：会话/技能/记忆/指令/命令/钩子，逐源计数与错误。下一步 move_preview。）',
     parameters: {
       source: {
         type: 'string',
-        enum: ['all', 'claude', 'codex', 'opencode', 'hermes'],
+        enum: ['all', 'claude', 'codex', 'opencode', 'hermes', 'daedalus'],
         description: "可选：'all'（默认）或单个源标识。",
       },
     },
@@ -2801,12 +2811,12 @@ function makeMoveTools(ctx, config, state) {
   const previewTool = defineTool({
     name: 'move_preview',
     description:
-      'Preview the four-source migration plan: per-item idempotent status (new/changed/unchanged/conflict/unsupported), conflict diffs when a target was manually edited, and counts. No writes. Use move_run to execute; pass resolve per conflict key (skip/overwrite/rename/merge, default skip). ' +
-      '（预览四源迁移计划：逐项幂等状态（新增/更新/跳过/冲突/不支持）、目标被手工修改时的冲突 diff 与计数。零写入。执行用 move_run，冲突按 key 传 resolve。）',
+      'Preview the five-source migration plan: per-item idempotent status (new/changed/unchanged/conflict/unsupported), conflict diffs when a target was manually edited, and counts. No writes. Use move_run to execute; pass resolve per conflict key (skip/overwrite/rename/merge, default skip). ' +
+      '（预览五源迁移计划：逐项幂等状态（新增/更新/跳过/冲突/不支持）、目标被手工修改时的冲突 diff 与计数。零写入。执行用 move_run，冲突按 key 传 resolve。）',
     parameters: {
       source: {
         type: 'string',
-        enum: ['all', 'claude', 'codex', 'opencode', 'hermes'],
+        enum: ['all', 'claude', 'codex', 'opencode', 'hermes', 'daedalus'],
         description: "可选：'all'（默认）或单个源标识。",
       },
       force: {
@@ -2851,12 +2861,12 @@ function makeMoveTools(ctx, config, state) {
   const runTool = defineTool({
     name: 'move_run',
     description:
-      'Execute the four-source migration after approval (ctx.approval; fails closed when unavailable or rejected — nothing is written). Import sessions (resumable), copy/convert skills into $DSH_HOME/skills, append memories/instructions as managed sections of $DSH_HOME/AGENTS.md, register prompt-only commands. Idempotent via move.json manifest; force re-applies; conflicts need per-key resolve (skip/overwrite/rename/merge, default skip). ' +
-      '（审批后执行四源迁移（fail-closed：审批不可用/拒绝时零写入）。导入可续聊会话、技能拷入 $DSH_HOME/skills、记忆/指令追加为 $DSH_HOME/AGENTS.md 管理段、纯提示词命令注册为 DSH 命令。move.json 幂等；force 重应用；冲突按 key 传 resolve。）',
+      'Execute the five-source migration after approval (ctx.approval; fails closed when unavailable or rejected — nothing is written). Import sessions (resumable), copy/convert skills into $DSH_HOME/skills, append memories/instructions as managed sections of $DSH_HOME/AGENTS.md, register prompt-only commands. Idempotent via move.json manifest; force re-applies; conflicts need per-key resolve (skip/overwrite/rename/merge, default skip). ' +
+      '（审批后执行五源迁移（fail-closed：审批不可用/拒绝时零写入）。导入可续聊会话、技能拷入 $DSH_HOME/skills、记忆/指令追加为 $DSH_HOME/AGENTS.md 管理段、纯提示词命令注册为 DSH 命令。move.json 幂等；force 重应用；冲突按 key 传 resolve。）',
     parameters: {
       source: {
         type: 'string',
-        enum: ['all', 'claude', 'codex', 'opencode', 'hermes'],
+        enum: ['all', 'claude', 'codex', 'opencode', 'hermes', 'daedalus'],
         description: "可选：'all'（默认）或单个源标识。",
       },
       selection: {
@@ -2931,8 +2941,8 @@ export function registerMoveCommand(ctx, config, state) {
 
     commands.register({
       name: 'move',
-      description: 'Four-source migration wizard (Claude Code / Codex / OpenCode / Hermes): detect → preview → run → report（四合一迁移向导：detect 检测 → preview 预览 → run 执行 → report 报告）',
-      input: { hint: 'detect | preview | run | report [source=claude|codex|opencode|hermes|all]' },
+      description: 'Five-source migration wizard (Claude Code / Codex / OpenCode / Hermes / Daedalus): detect → preview → run → report（五源迁移向导：detect 检测 → preview 预览 → run 执行 → report 报告）',
+      input: { hint: 'detect | preview | run | report [source=claude|codex|opencode|hermes|daedalus|all]' },
       handler: async (invocation) => {
         try {
           const parts = invocation.rawInput.trim().split(/\s+/)

@@ -5,7 +5,7 @@
 
 **将 Claude Code、Codex、OpenCode 和 Hermes 迁移到 DeepSeek Harness —— 将会话、记忆、技能、指令和斜杠命令复制为可续聊的 DSH 会话，只复制、审批门控。**
 
-*迁移时保留你的 Claude Code 历史：一次安装、可续聊会话、与运行中的 Claude Code 实时同步，以及一个四来源迁移向导。*
+*迁移时保留你的 Claude Code 历史：一次安装、可续聊会话、与运行中的 Claude Code 实时同步，以及一个五来源迁移向导。*
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![DSH plugin](https://img.shields.io/badge/dsh-plugin-✅-green)](https://github.com/topics/dsh-plugin)
@@ -42,21 +42,21 @@
 3. **一个 `claudecode` 工作区** —— 每个导入的会话都落到一个专用工作区（默认 `$DSH_HOME/claudecode`）；`workspaceMode: 'per-project'` 恢复每个项目一个工作区的分组方式。
 4. **只复制且增量** —— 两侧都不会被移动、改写或删除；重新运行只追加新的轮次（`force: true` 以新 id 额外保存一份完整副本）。
 5. **个人上下文，始终新鲜** —— 记忆作为实时提示词段落注入，Claude 技能注册为真正的 DSH 技能（全局 + 项目级），全局 + 项目 `CLAUDE.md` 提前注入。
-6. **四来源迁移向导** —— `/move` 加上 `move_detect` / `move_preview` / `move_run` 迁移 Claude Code、Codex、OpenCode 和 Hermes，审批门控且幂等（`move.json`）。
+6. **五来源迁移向导** —— `/move` 加上 `move_detect` / `move_preview` / `move_run` 迁移 Claude Code、Codex、OpenCode、Hermes 和 Daedalus，审批门控且幂等（`move.json`）。
 7. **Web 面板与命令** —— `/claude-import-all`、`/resume-claude`、`/claude-move-reset`、`/claude-export`，以及一个浮动迁移面板。
 8. **双向导出** —— `claude_export`（或 `/claude-export <sessionId>`）把 DSH 会话回写为 Claude Code 可 resume 的 JSONL transcript（user/assistant/tool 轮次、thinking + tool_use/tool_result 配对、cwd 尽力映射），让历史可以再次离开 DSH。
 
-## 四来源迁移向导
+## 五来源迁移向导
 
 ```text
-/move              # 一次性向导：检测 → 预览 → 执行 → 报告（全部四个来源）
-move_detect        # 扫描 Claude Code / Codex / OpenCode / Hermes
+/move              # 一次性向导：检测 → 预览 → 执行 → 报告（全部五个来源）
+move_detect        # 扫描 Claude Code / Codex / OpenCode / Hermes / Daedalus
 move_preview       # 逐项计划：new | unchanged | changed | conflict（含 diff）| unsupported
 move_run           # 在审批门控之后执行；冲突解决：
                    #   skip | overwrite | rename | merge  （默认 skip —— 绝不猜测）
 ```
 
-- **来源** —— Claude Code（`~/.claude`）、Codex（`~/.codex`）、OpenCode（数据 + 配置根）、Hermes（技能/记忆根）；每个来源都有自己的 parser + mapper。
+- **来源** —— Claude Code（`~/.claude`）、Codex（`~/.codex`）、OpenCode（数据 + 配置根）、Hermes（技能/记忆根）、Daedalus（会话/技能/记忆根 + `SOUL.md`）；每个来源都有自己的 parser + mapper。
 - **映射** —— 记忆/指令 → 追加到 DSH 全局 `AGENTS.md` 的仅追加受管段落（每项一个标记段落）；技能 → 真正的 DSH 技能（`SKILL.md` 包原样复制，其他格式转换）；斜杠命令 → 已注册的 DSH 命令（重启后从 `move.json` 重建）；会话 → 可续聊的 DSH 会话（与阶段 1 相同的导入器）。
 - **幂等** —— 每个已应用的计划都记录在 `$DSH_HOME/claude-move/move.json`（`digest` / `targetDigest` / `appliedAt`）；重新运行跳过未变更项，`force` 重新应用它们。
 - **审批门控** —— 任何会写入内容的运行都先询问 `ctx.approval`；除 `allowed-once` 之外的任何结果都意味着零写入。
@@ -180,6 +180,7 @@ Web 面板：一个浮动迁移面板，包含项目/会话树、状态徽章（
 | `opencodeDataHome` | 平台 XDG 数据目录/opencode | OpenCode 数据根 |
 | `opencodeConfigHome` | 平台 XDG 配置目录/opencode | OpenCode 配置根 |
 | `hermesHome` | `$HERMES_HOME` 或 `~/.hermes` | Hermes 数据根 |
+| `daedalusHome` | `$DAEDALUS_HOME` 或 `~/.daedalus` | Daedalus 数据根 |
 | `skillsDir` | `$DSH_HOME/skills` | 向导技能目标 |
 | `agentsMdPath` | `$DSH_HOME/AGENTS.md` | 向导记忆/指令目标 |
 | `moveWorkspaceMode` | `per-source` | 向导导入的工作区分组：`per-source` · `single` |
@@ -193,12 +194,12 @@ Web 面板：一个浮动迁移面板，包含项目/会话树、状态徽章（
 | `claude_scan` | 工具 | 项目/会话/记忆/技能/设置的结构化索引 |
 | `import_claude` | 工具 | 导入单个会话、一个目录或 `all`（增量；`force` 生成全新副本） |
 | `claude_export` | 工具 | 把 DSH 会话导出为可 resume 的 Claude Code JSONL transcript |
-| `move_detect` / `move_preview` / `move_run` | 工具 | 四来源向导：扫描、带 diff 的逐项计划、在审批之后执行 |
+| `move_detect` / `move_preview` / `move_run` | 工具 | 五来源向导：扫描、带 diff 的逐项计划、在审批之后执行 |
 | `/claude-import-all` | 命令 | 扫描 → 导入全部 → 报告 |
 | `/resume-claude` | 命令 | 继续一个 Claude 会话（latest、id 或关键字） |
 | `/claude-move-reset` | 命令 | 重置插件缓存（导入的会话保留） |
 | `/claude-export` | 命令 | 导出 DSH 会话为可 resume 的 Claude JSONL transcript |
-| `/move` | 命令 | 一次性四来源向导 |
+| `/move` | 命令 | 一次性五来源向导 |
 | Web 迁移面板 | 客户端 | 带进度、取消、分页、打开会话的浮动面板 |
 
 ## 权限与数据
@@ -264,7 +265,7 @@ CI 通过 GitHub Actions（[test.yml](.github/workflows/test.yml)）在 Linux/ma
 
 ## 贡献者
 
-- [@PerryLink](https://github.com/PerryLink) —— 创建者与维护者：导入管线、四来源迁移向导、Web 面板、文档、CI/CD 与发布。
+- [@PerryLink](https://github.com/PerryLink) —— 创建者与维护者：导入管线、五来源迁移向导、Web 面板、文档、CI/CD 与发布。
 - [@OLDnana1](https://github.com/OLDnana1) —— 对被中断工具调用损坏的根因分析，该损坏曾使导入会话在续聊时永久返回 HTTP 400。
 - [@GooodWei](https://github.com/GooodWei) —— 发现 `README.md`（以及任何无描述的 `.md`）被误注册为技能，从而破坏 DSH 的技能加载。
 

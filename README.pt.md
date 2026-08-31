@@ -5,7 +5,7 @@
 
 **Migre Claude Code, Codex, OpenCode e Hermes para o DeepSeek Harness — copie sessões, memórias, habilidades, instruções e comandos de barra como sessões DSH retomáveis, somente-cópia e com aprovação.**
 
-*Mantenha seu histórico do Claude Code ao migrar: uma única instalação, sessões retomáveis, sincronização em tempo real com um Claude Code em execução e um assistente de migração de quatro fontes.*
+*Mantenha seu histórico do Claude Code ao migrar: uma única instalação, sessões retomáveis, sincronização em tempo real com um Claude Code em execução e um assistente de migração de cinco fontes.*
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![DSH plugin](https://img.shields.io/badge/dsh-plugin-✅-green)](https://github.com/topics/dsh-plugin)
@@ -42,21 +42,21 @@
 3. **Um único workspace `claudecode`** — cada sessão importada cai em um workspace dedicado (padrão `$DSH_HOME/claudecode`); `workspaceMode: 'per-project'` restaura o agrupamento de um workspace por projeto.
 4. **Somente-cópia e incremental** — nada é movido, reescrito ou excluído em nenhum dos lados; reexecutar apenas anexa os turnos novos (`force: true` salva uma cópia completa extra sob um novo id).
 5. **Contexto pessoal, sempre atualizado** — memórias injetadas como uma seção de prompt em tempo real, habilidades do Claude registradas como habilidades DSH reais (globais + de projeto), e o `CLAUDE.md` global + de projeto injetado cedo.
-6. **Assistente de migração de quatro fontes** — `/move` mais `move_detect` / `move_preview` / `move_run` migram Claude Code, Codex, OpenCode e Hermes, com aprovação e idempotência (`move.json`).
+6. **Assistente de migração de cinco fontes** — `/move` mais `move_detect` / `move_preview` / `move_run` migram Claude Code, Codex, OpenCode, Hermes e Daedalus, com aprovação e idempotência (`move.json`).
 7. **Painel web e comandos** — `/claude-import-all`, `/resume-claude`, `/claude-move-reset`, `/claude-export` e um painel de migração flutuante.
 8. **Exportação bidirecional** — `claude_export` (ou `/claude-export <sessionId>`) grava uma sessão DSH de volta como transcript JSONL retomável do Claude Code (turnos `user`/`assistant`/`tool`, pareamento `thinking` + `tool_use`/`tool_result`, mapeamento `cwd` de melhor esforço), para que o histórico possa sair do DSH novamente.
 
-## Assistente de migração de quatro fontes
+## Assistente de migração de cinco fontes
 
 ```text
-/move              # assistente de um só passo: detectar → pré-visualizar → executar → relatar (as quatro fontes)
-move_detect        # varre Claude Code / Codex / OpenCode / Hermes
+/move              # assistente de um só passo: detectar → pré-visualizar → executar → relatar (as cinco fontes)
+move_detect        # varre Claude Code / Codex / OpenCode / Hermes / Daedalus
 move_preview       # plano por item: new | unchanged | changed | conflict (com diff) | unsupported
 move_run           # executa atrás da porta de aprovação; resolução de conflitos:
                    #   skip | overwrite | rename | merge  (padrão skip — nunca adivinha)
 ```
 
-- **Fontes** — Claude Code (`~/.claude`), Codex (`~/.codex`), OpenCode (raízes de dados + config), Hermes (raízes de skills/memória); cada fonte tem seu próprio parser + mapper.
+- **Fontes** — Claude Code (`~/.claude`), Codex (`~/.codex`), OpenCode (raízes de dados + config), Hermes (raízes de skills/memória), Daedalus (raízes de sessões/skills/memórias + `SOUL.md`); cada fonte tem seu próprio parser + mapper.
 - **Mapeamento** — memórias/instruções → seções gerenciadas somente-anexáveis no `AGENTS.md` global do DSH (uma seção marcada por item); skills → skills DSH reais (pacotes `SKILL.md` copiados tal e qual, outros formatos convertidos); comandos de barra → comandos DSH registrados (reconstruídos a partir de `move.json` após reiniciar); sessões → sessões DSH retomáveis (os mesmos importadores da fase 1).
 - **Idempotente** — cada plano aplicado é registrado em `$DSH_HOME/claude-move/move.json` (`digest` / `targetDigest` / `appliedAt`); reexecuções pulam itens inalterados e `force` os reaplica.
 - **Com aprovação** — uma execução que escreveria algo pergunta primeiro a `ctx.approval`; qualquer coisa diferente de `allowed-once` significa zero escritas.
@@ -180,6 +180,7 @@ Tudo opcional, anulável no cordis.yml.
 | `opencodeDataHome` | dir de dados XDG da plataforma/opencode | Raiz de dados do OpenCode |
 | `opencodeConfigHome` | dir de config XDG da plataforma/opencode | Raiz de config do OpenCode |
 | `hermesHome` | `$HERMES_HOME` ou `~/.hermes` | Raiz de dados do Hermes |
+| `daedalusHome` | `$DAEDALUS_HOME` ou `~/.daedalus` | Raiz de dados do Daedalus |
 | `skillsDir` | `$DSH_HOME/skills` | Destino de skills do assistente |
 | `agentsMdPath` | `$DSH_HOME/AGENTS.md` | Destino de memória/instruções do assistente |
 | `moveWorkspaceMode` | `per-source` | Agrupamento de workspace para importações do assistente: `per-source` · `single` |
@@ -193,12 +194,12 @@ Tudo opcional, anulável no cordis.yml.
 | `claude_scan` | ferramenta | Índice estruturado de projetos/sessões/memórias/habilidades/ajustes |
 | `import_claude` | ferramenta | Importa uma sessão, um diretório ou `all` (incremental; `force` para cópia nova) |
 | `claude_export` | ferramenta | Exporta uma sessão DSH para um transcript JSONL retomável do Claude Code |
-| `move_detect` / `move_preview` / `move_run` | ferramentas | Assistente de quatro fontes: varrer, plano por item com diffs, executar após aprovação |
+| `move_detect` / `move_preview` / `move_run` | ferramentas | Assistente de cinco fontes: varrer, plano por item com diffs, executar após aprovação |
 | `/claude-import-all` | comando | Varre → importa tudo → relata |
 | `/resume-claude` | comando | Continua uma sessão do Claude (latest, id ou palavra-chave) |
 | `/claude-move-reset` | comando | Reinicia o cache do plugin (sessões importadas mantidas) |
 | `/claude-export` | comando | Exporta uma sessão DSH para um transcript JSONL retomável do Claude |
-| `/move` | comando | Assistente de quatro fontes de um só passo |
+| `/move` | comando | Assistente de cinco fontes de um só passo |
 | Painel web de migração | cliente | Painel flutuante com progresso, cancelamento, paginação, abrir sessão |
 
 ## Permissões e dados
@@ -264,7 +265,7 @@ A CI executa a suíte completa no Node 22 em Linux/macOS/Windows via GitHub Acti
 
 ## Contribuidores
 
-- [@PerryLink](https://github.com/PerryLink) — criador e mantenedor: o pipeline de importação, o assistente de migração de quatro fontes, o painel web, a documentação, CI/CD e releases.
+- [@PerryLink](https://github.com/PerryLink) — criador e mantenedor: o pipeline de importação, o assistente de migração de cinco fontes, o painel web, a documentação, CI/CD e releases.
 - [@OLDnana1](https://github.com/OLDnana1) — análise de causa raiz da corrupção de chamadas de ferramenta interrompidas que fazia as sessões importadas retornarem permanentemente HTTP 400 ao retomar.
 - [@GooodWei](https://github.com/GooodWei) — identificou que `README.md` (e qualquer `.md` sem descrição) era registrado incorretamente como habilidade, o que quebrava o carregamento de habilidades do DSH.
 

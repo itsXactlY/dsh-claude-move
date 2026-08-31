@@ -4,9 +4,9 @@
 - **1024 store channel**: `npm i -g dsh1024` once, then `dsh1024 plugin --profile web add dsh-claude-move` (counts toward the [deepseek1024.com](https://deepseek1024.com) install ranking).
 [![Gitee](https://img.shields.io/badge/Gitee-mirror-c71d23?logo=gitee)](https://gitee.com/perrylink/dsh-claude-move)
 
-**Migrate Claude Code, Codex, OpenCode and Hermes into DeepSeek Harness — copy sessions, memories, skills, instructions and slash commands as resumable DSH sessions, copy-only and approval-gated.**
+**Migrate Claude Code, Codex, OpenCode, Hermes and Daedalus into DeepSeek Harness — copy sessions, memories, skills, instructions and slash commands as resumable DSH sessions, copy-only and approval-gated.**
 
-*Keep your Claude Code history when you move: one install, resumable sessions, live sync with a running Claude Code, and a four-source migration wizard.*
+*Keep your Claude Code history when you move: one install, resumable sessions, live sync with a running Claude Code, and a five-source migration wizard.*
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![DSH plugin](https://img.shields.io/badge/dsh-plugin-✅-green)](https://github.com/topics/dsh-plugin)
@@ -43,21 +43,21 @@
 3. **One `claudecode` workspace** — every imported session lands in a dedicated workspace (default `$DSH_HOME/claudecode`); `workspaceMode: 'per-project'` restores one-workspace-per-project grouping.
 4. **Copy-only & incremental** — nothing on either side is moved, rewritten, or deleted; re-running appends only the new turns (`force: true` saves an extra full copy under a new id).
 5. **Personal context, always fresh** — memories injected as a live prompt section, Claude skills registered as real DSH skills (global + project-level), global + project `CLAUDE.md` injected early.
-6. **Four-source migration wizard** — `/move` plus `move_detect` / `move_preview` / `move_run` migrate Claude Code, Codex, OpenCode and Hermes, approval-gated and idempotent (`move.json`).
+6. **Five-source migration wizard** — `/move` plus `move_detect` / `move_preview` / `move_run` migrate Claude Code, Codex, OpenCode, Hermes and Daedalus, approval-gated and idempotent (`move.json`).
 7. **Web panel & commands** — `/claude-import-all`, `/resume-claude`, `/claude-move-reset`, `/claude-export`, and a floating migration panel.
 8. **Bidirectional export** — `claude_export` (or `/claude-export <sessionId>`) writes a DSH session back out as a resumable Claude Code JSONL transcript (`user`/`assistant`/`tool` turns, `thinking` + `tool_use`/`tool_result` pairing, best-effort `cwd` mapping), so history can leave DSH again.
 
-## Four-source migration wizard
+## Five-source migration wizard
 
 ```text
-/move              # one-shot wizard: detect → preview → execute → report (all four sources)
-move_detect        # scan Claude Code / Codex / OpenCode / Hermes
+/move              # one-shot wizard: detect → preview → execute → report (all five sources)
+move_detect        # scan Claude Code / Codex / OpenCode / Hermes / Daedalus
 move_preview       # per-item plan: new | unchanged | changed | conflict (with diff) | unsupported
 move_run           # execute behind the approval gate; conflict resolution:
                    #   skip | overwrite | rename | merge  (default skip — never guesses)
 ```
 
-- **Sources** — Claude Code (`~/.claude`), Codex (`~/.codex`), OpenCode (data + config roots), Hermes (skills/memory roots); each source has its own parser + mapper.
+- **Sources** — Claude Code (`~/.claude`), Codex (`~/.codex`), OpenCode (data + config roots), Hermes (skills/memory roots), Daedalus (sessions/skills/memories roots + `SOUL.md`); each source has its own parser + mapper.
 - **Mapping** — memories/instructions → append-only managed sections in the DSH global `AGENTS.md` (one marked section per item); skills → real DSH skills (`SKILL.md` bundles copied verbatim, other formats converted); slash commands → registered DSH commands (rebuilt from `move.json` after a restart); sessions → resumable DSH sessions (the same importers as phase 1).
 - **Idempotent** — every applied plan is recorded in `$DSH_HOME/claude-move/move.json` (`digest` / `targetDigest` / `appliedAt`); re-runs skip unchanged items and `force` re-applies them.
 - **Approval-gated** — a run that would write anything asks `ctx.approval` first; anything but `allowed-once` means zero writes.
@@ -181,6 +181,7 @@ All optional, overridable in cordis.yml.
 | `opencodeDataHome` | platform XDG data dir/opencode | OpenCode data root |
 | `opencodeConfigHome` | platform XDG config dir/opencode | OpenCode config root |
 | `hermesHome` | `$HERMES_HOME` or `~/.hermes` | Hermes data root |
+| `daedalusHome` | `$DAEDALUS_HOME` or `~/.daedalus` | Daedalus data root |
 | `skillsDir` | `$DSH_HOME/skills` | Wizard skill target |
 | `agentsMdPath` | `$DSH_HOME/AGENTS.md` | Wizard memory/instruction target |
 | `moveWorkspaceMode` | `per-source` | `per-source` · `single` workspace grouping for wizard imports |
@@ -194,12 +195,12 @@ All optional, overridable in cordis.yml.
 | `claude_scan` | tool | Structured index of projects/sessions/memories/skills/settings |
 | `import_claude` | tool | Import one session, a directory, or `all` (incremental, `force` for a fresh copy) |
 | `claude_export` | tool | Export a DSH session to a resumable Claude Code JSONL transcript |
-| `move_detect` / `move_preview` / `move_run` | tools | Four-source wizard: scan, per-item plan with diffs, execute behind approval |
+| `move_detect` / `move_preview` / `move_run` | tools | Five-source wizard: scan, per-item plan with diffs, execute behind approval |
 | `/claude-import-all` | command | Scan → import everything → report |
 | `/resume-claude` | command | Continue a Claude session (latest, id, or keyword) |
 | `/claude-move-reset` | command | Reset the plugin cache (imported sessions kept) |
 | `/claude-export` | command | Export a DSH session to a resumable Claude JSONL transcript |
-| `/move` | command | One-shot four-source wizard |
+| `/move` | command | One-shot five-source wizard |
 | Web migration panel | client | Floating panel with progress, cancel, paging, open session |
 
 ## Permissions & data
@@ -265,7 +266,7 @@ CI runs the full suite on Node 22 across Linux/macOS/Windows via GitHub Actions 
 
 ## Contributors
 
-- [@PerryLink](https://github.com/PerryLink) — creator and maintainer: the import pipeline, the four-source migration wizard, the Web panel, docs, CI/CD and releases.
+- [@PerryLink](https://github.com/PerryLink) — creator and maintainer: the import pipeline, the five-source migration wizard, the Web panel, docs, CI/CD and releases.
 - [@OLDnana1](https://github.com/OLDnana1) — root-cause analysis of the interrupted tool-call corruption that made imported sessions permanently return HTTP 400 on resume.
 - [@GooodWei](https://github.com/GooodWei) — identified `README.md` (and any description-less `.md`) being misregistered as a skill, which broke DSH's skill load.
 
